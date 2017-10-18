@@ -5,7 +5,7 @@ CS579: Assignment 0
 Collecting a political social network
 
 In this assignment, I've given you a list of Twitter accounts of 4
-U.S. presedential candidates from the previous election.
+U.S. presedential candidates.
 
 The goal is to use the Twitter API to construct a social network of these
 accounts. We will then use the [networkx](http://networkx.github.io/) library
@@ -37,20 +37,18 @@ import sys
 import time
 from TwitterAPI import TwitterAPI
 
-consumer_key = 'fixme'
-consumer_secret = 'fixme'
-access_token = 'fixme'
-access_token_secret = 'fixme'
+consumer_key = '8ksmmxP9vft7nBu7MY4cH0XS5'
+consumer_secret = 'uttRQ9Do17NLGaXvnXY2jalR1N0H7dTaif9vfzXWcwFOorJq9v'
+access_token = '833153781642752000-enldM0e3OV4So53YDEtB7chMCbUyTzV'
+access_token_secret = 'eGp9XNepJdIPur6LSOlwSSu7ZLoNpufsGMOD89GrO4npn'
 
 
-# This method is done for you.
 def get_twitter():
     """ Construct an instance of TwitterAPI using the tokens you entered above.
     Returns:
       An instance of TwitterAPI.
     """
     return TwitterAPI(consumer_key, consumer_secret, access_token, access_token_secret)
-
 
 def read_screen_names(filename):
     """
@@ -66,12 +64,15 @@ def read_screen_names(filename):
     >>> read_screen_names('candidates.txt')
     ['DrJillStein', 'GovGaryJohnson', 'HillaryClinton', 'realDonaldTrump']
     """
-    ###TODO
+    file = open("D:\\data\\osna.txt", "r")
+    screen_names = []
+    for names in file:
+        screen_names.append(names.rstrip())
+    return screen_names
     pass
 
 
-# I've provided the method below to handle Twitter's rate limiting.
-# You should call this method whenever you need to access the Twitter API.
+
 def robust_request(twitter, resource, params, max_tries=5):
     """ If a Twitter request fails, sleep for 15 minutes.
     Do this at most max_tries times before quitting.
@@ -112,11 +113,14 @@ def get_users(twitter, screen_names):
     >>> [u['id'] for u in users]
     [6253282, 783214]
     """
-    ###TODO
+    users = []
+    for s in screen_names:
+        users.append([user for user in robust_request(twitter,'users/lookup',{'screen_name':s})][0])
+    return users
     pass
 
 
-def get_friends(twitter, screen_name):
+def get_friends(twitter, screen_names):
     """ Return a list of Twitter IDs for users that this person follows, up to 5000.
     See https://dev.twitter.com/rest/reference/get/friends/ids
 
@@ -137,7 +141,8 @@ def get_friends(twitter, screen_name):
     >>> get_friends(twitter, 'aronwc')[:5]
     [695023, 1697081, 8381682, 10204352, 11669522]
     """
-    ###TODO
+    tid = [u for u in robust_request(twitter,'friends/ids',{'screen_name':screen_names,'count':5000})]
+    return sorted(tid)
     pass
 
 
@@ -159,7 +164,8 @@ def add_all_friends(twitter, users):
     >>> users[0]['friends'][:5]
     [695023, 1697081, 8381682, 10204352, 11669522]
     """
-    ###TODO
+    for user in users:
+        user['friends'] = get_friends(twitter, user['screen_name'])
     pass
 
 
@@ -171,7 +177,9 @@ def print_num_friends(users):
     Returns:
         Nothing
     """
-    ###TODO
+    candidates = sorted([(user['screen_name'],len(user['friends'])) for user in users])
+    for candidate in candidates:
+        print (candidate[0],candidate[1])
     pass
 
 
@@ -188,7 +196,10 @@ def count_friends(users):
     >>> c.most_common()
     [(2, 3), (3, 2), (1, 1)]
     """
-    ###TODO
+    friends_list = []
+    for user in users:
+        friends_list.extend(user['friends'])
+    return Counter(friends_list)
     pass
 
 
@@ -213,9 +224,13 @@ def friend_overlap(users):
     ...     ])
     [('a', 'c', 3), ('a', 'b', 2), ('b', 'c', 2)]
     """
-    ###TODO
+    common_friends = []
+    for i in range(len(users)):
+        for j in range(i+1,len(users)):
+            number_of_common_friends = set(users[i]['friends']) & set(users[j]['friends'])
+            common_friends.append((users[i]['screen_name'],users[j]['screen_name'],len(number_of_common_friends)))
+    return common_friends
     pass
-
 
 def followed_by_hillary_and_donald(users, twitter):
     """
@@ -231,9 +246,16 @@ def followed_by_hillary_and_donald(users, twitter):
         A string containing the single Twitter screen_name of the user
         that is followed by both Hillary Clinton and Donald Trump.
     """
-    ###TODO
+    common_friend_hillary_and_donald = ""
+    for i in range(len(users)):
+        if (users[i]['screen_name'] == 'HillaryClinton'):
+            for j in range(i+1,len(users)):
+                if (users[j]['screen_name'] == 'realDonaldTrump'):
+                    common_friend_id = set(users[i]['friends']) & set(users[j]['friends'])
+    
+    common_friend_hillary_and_donald = [user['screen_name'] for user in robust_request(twitter, 'users/lookup', {'user_id':common_friend_id}, max_tries=5)]
+    return common_friend_hillary_and_donald
     pass
-
 
 def create_graph(users, friend_counts):
     """ Create a networkx undirected Graph, adding each candidate and friend
@@ -250,9 +272,16 @@ def create_graph(users, friend_counts):
     Returns:
       A networkx Graph
     """
-    ###TODO
+    graph = nx.Graph()
+    
+    for friend in friend_counts:
+        if friend_counts[friend] > 1:
+                for user in users:
+                    if friend in user['friends']:
+                        graph.add_edge(user['id'],friend)
+    return graph
+    
     pass
-
 
 def draw_network(graph, users, filename):
     """
@@ -264,14 +293,19 @@ def draw_network(graph, users, filename):
     Your figure does not have to look exactly the same as mine, but try to
     make it look presentable.
     """
-    ###TODO
+    candidate = {}
+    for user in users:
+        candidate[user['id']] = user['screen_name']
+    plt.figure(figsize=(25,25))
+    nx.draw_networkx(graph, nx.spring_layout(graph), labels = candidate, font_size=18, font_color='blue', font_weight="bold", node_color='black', edge_color='red', with_labels=True)
+    plt.axis('off')
+    plt.savefig(filename, format = "PNG")
     pass
-
 
 def main():
     """ Main method. You should not modify this. """
     twitter = get_twitter()
-    screen_names = read_screen_names('candidates.txt')
+    screen_names = read_screen_names('D:\\data\\osna.txt","r"')
     print('Established Twitter connection.')
     print('Read screen names: %s' % screen_names)
     users = sorted(get_users(twitter, screen_names), key=lambda x: x['screen_name'])
@@ -294,4 +328,4 @@ def main():
 if __name__ == '__main__':
     main()
 
-# That's it for now! This should give you an introduction to some of the data we'll study in this course.
+
